@@ -41,14 +41,9 @@ async function qaScreenshot(page: Page, name: string, area: ScreenshotArea = { k
   await page.screenshot({ path: file, clip });
 }
 
-/** The sidebar footer, from Add project down to the icon row, with some margin. */
+/** Includes summary rows above the fixed icon row. */
 async function footerClip(page: Page) {
-  const top = (await page.locator('[data-testid="sidebar-add-project"]:visible').boundingBox())!;
-  const bottom = (await page.locator('[data-testid="sidebar-settings"]:visible').boundingBox())!;
-  const margin = 16;
-  const x = Math.max(0, top.x - margin);
-  const y = Math.max(0, top.y - margin);
-  return { x, y, width: 300, height: bottom.y + bottom.height + margin - y };
+  return (await page.locator('[data-testid="sidebar-footer"]:visible').boundingBox())!;
 }
 
 test.describe("Usage item", () => {
