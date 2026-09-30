@@ -1368,6 +1368,7 @@ async function resolveBranchOffWorktreeSourcePlan(
   const resolvedBaseBranch = await resolveBaseBranchForWorktree(cwd, source.baseBranch);
   const branchExists = await localBranchExists(cwd, branchName);
   const base = branchExists ? branchName : resolvedBaseBranch;
+  await refreshRemoteTrackingBaseRef(cwd, base);
   const candidateBranch = branchExists ? desiredSlug : branchName;
   const newBranchName = await resolveUniqueLocalBranchName(cwd, candidateBranch);
 
@@ -1700,6 +1701,37 @@ async function resolveBaseBranchForWorktree(
     }
   }
   throw new Error(`Base branch not found: ${normalized}`);
+}
+
+// A remote-tracking base is only as fresh as the last fetch, and the background fetch only runs
+// while a workspace of the repository is observed. Refresh the one base branch so the new branch
+// starts at the remote tip; when the fetch fails (offline, auth) the cached ref is still usable.
+async function refreshRemoteTrackingBaseRef(cwd: string, baseRef: string): Promise<void> {
+  if (!baseRef.startsWith("refs/remotes/")) {
+    return;
+  }
+  try {
+    // Remote names may contain slashes, so the owning remote is looked up rather than parsed.
+    const { stdout } = await runGitCommand(["remote"], { cwd });
+    const remoteName = stdout
+      .split("\n")
+      .map((name) => name.trim())
+      .find((name) => name.length > 0 && baseRef.startsWith(`refs/remotes/${name}/`));
+    if (!remoteName) {
+      return;
+    }
+    const remoteBranch = baseRef.slice(`refs/remotes/${remoteName}/`.length);
+    // No refspec is added to remote.<name>.fetch: one left behind breaks later fetches once the
+    // branch is deleted on the remote.
+    await runGitCommand(["fetch", remoteName, `+refs/heads/${remoteBranch}:${baseRef}`], {
+      cwd,
+      envOverlay: { GIT_TERMINAL_PROMPT: "0" },
+      timeout: 120_000,
+      acceptExitCodes: [0, 1, 128],
+    });
+  } catch {
+    // The fetch timed out; branch from the cached ref.
+  }
 }
 
 async function ensureLocalBranch(cwd: string, branchName: string): Promise<void> {
