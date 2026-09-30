@@ -15,6 +15,8 @@ interface UsageReportsFixtureOptions {
   lists?: Array<UsageListResponse | (() => UsageListResponse)>;
   /** False simulates a host with no usage reporting capability. */
   usageSupported?: boolean;
+  /** Released hosts expose provider.usage.list with no source icons. */
+  providerUsageListOnly?: boolean;
 }
 
 type UsageListResponse = UsageReportEntry[] | { error: string };
@@ -38,7 +40,11 @@ function getSessionMessage(message: WebSocketMessage): Record<string, unknown> |
   return envelope.message as Record<string, unknown>;
 }
 
-function withUsageSupportFeature(message: WebSocketMessage, enabled: boolean): string | null {
+function withUsageSupportFeature(
+  message: WebSocketMessage,
+  enabled: boolean,
+  providerUsageListOnly: boolean,
+): string | null {
   const envelope = parseJson(message) as {
     type?: unknown;
     message?: { type?: unknown; payload?: Record<string, unknown> };
@@ -59,7 +65,11 @@ function withUsageSupportFeature(message: WebSocketMessage, enabled: boolean): s
       ...envelope.message,
       payload: {
         ...payload,
-        features: { ...features, usageSources: enabled, providerUsageList: enabled },
+        features: {
+          ...features,
+          usageSources: enabled && !providerUsageListOnly,
+          providerUsageList: enabled,
+        },
       },
     },
   });
@@ -96,6 +106,10 @@ export async function installUsageReportsFixture(
   const listRequests: Array<{ forceRefresh: boolean; reportIds?: string[] }> = [];
   const listCounter = createCounter();
   const usageSupported = options.usageSupported ?? true;
+  const providerUsageListOnly = options.providerUsageListOnly ?? false;
+  const requestType = providerUsageListOnly
+    ? "provider.usage.list.request"
+    : "usage.list_reports.request";
 
   await page.routeWebSocket(daemonWsRoutePattern(), (ws) => {
     const server = ws.connectToServer();
@@ -103,7 +117,7 @@ export async function installUsageReportsFixture(
     ws.onMessage((message) => {
       const request = getSessionMessage(message);
       const requestId = request?.requestId;
-      if (request?.type === "usage.list_reports.request" && typeof requestId === "string") {
+      if (request?.type === requestType && typeof requestId === "string") {
         listRequests.push({
           forceRefresh: request.forceRefresh === true,
           reportIds: Array.isArray(request.reportIds) ? (request.reportIds as string[]) : undefined,
@@ -118,7 +132,7 @@ export async function installUsageReportsFixture(
                 type: "rpc_error",
                 payload: {
                   requestId,
-                  requestType: "usage.list_reports.request",
+                  requestType,
                   error: response.error,
                   code: "transport",
                 },
@@ -130,12 +144,23 @@ export async function installUsageReportsFixture(
         }
         const ids = Array.isArray(request.reportIds) ? request.reportIds : null;
         const reports = ids ? response.filter((entry) => ids.includes(entry.id)) : response;
-        ws.send(
-          JSON.stringify({
-            type: "session",
-            message: { type: "usage.list_reports.response", payload: { requestId, reports } },
-          }),
-        );
+        const reply = providerUsageListOnly
+          ? {
+              type: "provider.usage.list.response",
+              payload: {
+                requestId,
+                fetchedAt: new Date().toISOString(),
+                providers: reports.map((entry) => ({
+                  providerId: entry.sourceId,
+                  displayName: entry.sourceLabel,
+                  fetchedAt: entry.fetchedAt,
+                  ...entry.report,
+                  planLabel: entry.report.planLabel ?? null,
+                })),
+              },
+            }
+          : { type: "usage.list_reports.response", payload: { requestId, reports } };
+        ws.send(JSON.stringify({ type: "session", message: reply }));
         listCounter.increment();
         return;
       }
@@ -144,7 +169,9 @@ export async function installUsageReportsFixture(
 
     server.onMessage((message) => {
       const serverInfo =
-        typeof message === "string" ? withUsageSupportFeature(message, usageSupported) : null;
+        typeof message === "string"
+          ? withUsageSupportFeature(message, usageSupported, providerUsageListOnly)
+          : null;
       ws.send(serverInfo ?? message);
     });
   });

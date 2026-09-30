@@ -201,3 +201,31 @@ test.describe("Usage item", () => {
     });
   });
 });
+
+test("released hosts supply source logos through the client conversion", async ({ page }) => {
+  await installUsageReportsFixture(page, {
+    lists: [() => claudeAndCodexReports()],
+    providerUsageListOnly: true,
+  });
+  await page.setViewportSize(WIDE);
+  await gotoAppShell(page);
+  await expectPinnedUsage(page, ["31%", "7%"]);
+  // Source logos are decorative SVGs with no accessible role. Their path data distinguishes
+  // the source artwork from the fallback gauge.
+  const claudePath = /<path[^>]* d="([^"]+)"/.exec(claudeAndCodexReports()[0]!.icon!)![1]!;
+  const codexPath = /<path[^>]* d="([^"]+)"/.exec(claudeAndCodexReports()[1]!.icon!)![1]!;
+  const summary = usageItem(page).getByTestId("sidebar-usage-pinned-window");
+  await expect(summary.nth(0).locator("svg path").first()).toHaveAttribute("d", claudePath);
+  await expect(summary.nth(1).locator("svg path").first()).toHaveAttribute("d", codexPath);
+  await qaScreenshot(page, "released-host-footer", { kind: "footer" });
+  await usageItem(page).click();
+  await expectOnUsageScreen(page);
+  const screen = page.getByTestId(`usage-host-${getServerId()}`);
+  await expect(
+    screen.getByTestId("usage-report-claude").locator("svg path").first(),
+  ).toHaveAttribute("d", claudePath);
+  await expect(
+    screen.getByTestId("usage-report-codex").locator("svg path").first(),
+  ).toHaveAttribute("d", codexPath);
+  await qaScreenshot(page, "released-host-usage-screen");
+});
