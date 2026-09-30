@@ -1,6 +1,6 @@
 import type { PluginLifecycle } from "./lifecycle/index.js";
 import path from "node:path";
-import { stat, rm } from "node:fs/promises";
+import { stat } from "node:fs/promises";
 import type pino from "pino";
 import type { ProviderRegistration } from "@getpaseo/plugin/server/provider";
 import {
@@ -93,7 +93,7 @@ export class PluginService {
     logger: pino.Logger,
     private readonly configStore: DaemonConfigStore,
     private readonly daemonVersion: string,
-    private readonly dependencies: PluginServiceDependencies = {},
+    dependencies: PluginServiceDependencies = {},
   ) {
     this.logger = logger.child({ module: "plugin-service" });
     this.runtime =
@@ -449,11 +449,6 @@ export class PluginService {
       this.errors.delete(pluginId);
       this.notify(pluginId);
       await this.managedSources?.remove(pluginId);
-      if (this.dependencies.settingsDirectory)
-        await rm(path.join(this.dependencies.settingsDirectory, pluginId), {
-          recursive: true,
-          force: true,
-        });
     });
   }
 
