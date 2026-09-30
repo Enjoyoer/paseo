@@ -44,6 +44,46 @@ function preferences(
 }
 
 describe("resolvePinnedUsage", () => {
+  it("defaults to the first window with a percent for each source account", () => {
+    const work = report({
+      sourceId: "claude",
+      sourceLabel: "Claude",
+      account: "work",
+      windows: [
+        { id: "empty", label: "Empty" },
+        { id: "weekly", label: "Weekly", usedPct: 90 },
+      ],
+    });
+    const empty = report({
+      sourceId: "empty",
+      sourceLabel: "Empty",
+      windows: [{ id: "empty", label: "Empty" }],
+    });
+    expect(
+      resolvePinnedUsage([claude, codex, work, empty], preferences([])).map((item) => [
+        item.key,
+        item.percentText,
+      ]),
+    ).toEqual([
+      ["claude:default/five-hour", "31%"],
+      ["codex:default/weekly", "12%"],
+      ["claude:work/weekly", "90%"],
+    ]);
+  });
+
+  it("pins replace defaults, and removing all pins restores defaults", () => {
+    const reports = [claude, codex];
+    expect(
+      resolvePinnedUsage(reports, preferences([{ sourceId: "claude", windowId: "weekly" }])).map(
+        (item) => item.key,
+      ),
+    ).toEqual(["claude:default/weekly"]);
+    expect(resolvePinnedUsage(reports, preferences([])).map((item) => item.key)).toEqual([
+      "claude:default/five-hour",
+      "codex:default/weekly",
+    ]);
+  });
+
   it("shows pinned windows in pin order, not report order", () => {
     const items = resolvePinnedUsage(
       [claude, codex],

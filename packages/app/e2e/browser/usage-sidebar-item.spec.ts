@@ -8,7 +8,6 @@ import { leaveSettings, openSidebarNavSettings } from "../support/helpers/sideba
 import { installUsageReportsFixture } from "../support/helpers/usage-reports";
 import {
   claudeAndCodexReports,
-  expectNoPinnedUsage,
   expectOnUsageScreen,
   expectPinnedUsage,
   leaveUsageScreen,
@@ -63,10 +62,10 @@ test.describe("Usage item", () => {
     await gotoAppShell(page);
     const screen = page.getByTestId(`usage-host-${serverId}`);
 
-    await test.step("a fresh device shows the plain Usage row, which opens the Usage screen", async () => {
+    await test.step("a fresh device shows default windows, which opens the Usage screen", async () => {
       await expect(usageItem(page)).toBeVisible({ timeout: 30_000 });
-      await expectNoPinnedUsage(page);
-      await qaScreenshot(page, "desktop-footer-empty", { kind: "footer" });
+      await expectPinnedUsage(page, ["31%", "7%"]);
+      await qaScreenshot(page, "desktop-footer-defaults", { kind: "footer" });
       await usageItem(page).click();
       await expectOnUsageScreen(page);
     });
@@ -78,6 +77,7 @@ test.describe("Usage item", () => {
         page.locator('[data-testid="usage-host-switcher"]:visible'),
       ).toHaveAccessibleName(/^Usage host: .+/);
       await togglePin(screen, "Claude", "Session");
+      await expectPinnedUsage(page, ["31%"]);
       await togglePin(screen, "Codex", "Weekly");
       await expectPinnedUsage(page, ["31%", "12%"]);
       await expect(usageItem(page)).not.toHaveText("Usage");
@@ -167,13 +167,13 @@ test.describe("Usage item", () => {
       await expect(screen.getByText("Claude", { exact: true })).toBeVisible({ timeout: 10_000 });
     });
 
-    await test.step("unpinning both brings back the Usage row, and that survives a reload", async () => {
+    await test.step("unpinning both brings back default windows, and that survives a reload", async () => {
       await togglePin(screen, "Claude", "Session");
       await togglePin(screen, "Codex", "Weekly");
-      await expectNoPinnedUsage(page);
+      await expectPinnedUsage(page, ["69% left", "93% left"]);
       await page.reload();
       await expect(screen.getByText("88% left")).toBeVisible({ timeout: 10_000 });
-      await expectNoPinnedUsage(page);
+      await expectPinnedUsage(page, ["69% left", "93% left"]);
       await gotoAppShell(page);
       await usageItem(page).click();
       await expectOnUsageScreen(page);
