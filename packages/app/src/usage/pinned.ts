@@ -1,4 +1,4 @@
-import { formatDisplayPct } from "./format";
+import { formatPct } from "./format";
 import { displayPercent } from "./model";
 import type { UsagePreferences } from "./preferences";
 import type { UsageReportEntry } from "./types";
@@ -7,7 +7,7 @@ import type { UsageReportEntry } from "./types";
 export interface PinnedUsageWindow {
   key: string;
   icon: string | null;
-  /** Source, account when it has one, and window: "Claude (work) 5-hour". */
+  /** Accessible description, including the source, account, window and percent meaning. */
   label: string;
   percentText: string;
 }
@@ -42,12 +42,14 @@ export function resolvePinnedUsage(
     if (!window) return [];
     const percent = displayPercent(window, preferences.displayAs);
     if (percent === null) return [];
+    const percentText = formatPct(percent);
+    const meaning = preferences.displayAs === "remaining" ? "left" : "used";
     return [
       {
         key: `${entry.id}/${window.id}`,
         icon: entry.icon ?? null,
-        label: describe(entry, window.label),
-        percentText: formatDisplayPct(percent, preferences.displayAs),
+        label: `${describe(entry, window.label)} ${percentText} ${meaning}`,
+        percentText,
       },
     ];
   });

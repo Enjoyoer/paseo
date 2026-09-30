@@ -94,11 +94,16 @@ describe("resolvePinnedUsage", () => {
     );
 
     expect(items).toEqual([
-      { key: "codex:default/weekly", icon: null, label: "Codex Weekly", percentText: "12%" },
+      {
+        key: "codex:default/weekly",
+        icon: null,
+        label: "Codex Weekly 12% used",
+        percentText: "12%",
+      },
       {
         key: "claude:default/five-hour",
         icon: "<svg/>",
-        label: "Claude 5-hour",
+        label: "Claude 5-hour 31% used",
         percentText: "31%",
       },
     ]);
@@ -116,7 +121,11 @@ describe("resolvePinnedUsage", () => {
       ),
     );
 
-    expect(items.map((item) => item.percentText)).toEqual(["69% left", "88% left"]);
+    expect(items.map((item) => item.percentText)).toEqual(["69%", "88%"]);
+    expect(items.map((item) => item.label)).toEqual([
+      "Claude 5-hour 69% left",
+      "Codex Weekly 88% left",
+    ]);
   });
 
   it("leaves out a pinned window that no report has, or that reports no percent", () => {
@@ -156,8 +165,8 @@ describe("resolvePinnedUsage", () => {
     );
 
     expect(items.map((item) => [item.label, item.percentText])).toEqual([
-      ["Claude (personal) 5-hour", "10%"],
-      ["Claude (work) 5-hour", "90%"],
+      ["Claude (personal) 5-hour 10% used", "10%"],
+      ["Claude (work) 5-hour 90% used", "90%"],
     ]);
   });
 });

@@ -169,7 +169,7 @@ function HostUsageSheet({
 }
 
 function pinnedUsageLabel(label: string, items: readonly PinnedUsageWindow[]): string {
-  return `${label}: ${items.map((item) => `${item.label} ${item.percentText}`).join(", ")}`;
+  return `${label}: ${items.map((item) => item.label).join(", ")}`;
 }
 
 function triggerStyle({ hovered }: PressableStateCallbackType & { hovered?: boolean }) {

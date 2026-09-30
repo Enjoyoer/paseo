@@ -8,7 +8,6 @@ import {
   Text,
   useWindowDimensions,
   View,
-  type PressableStateCallbackType,
 } from "react-native";
 import { Gesture } from "react-native-gesture-handler";
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue } from "react-native-reanimated";

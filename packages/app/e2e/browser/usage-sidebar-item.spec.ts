@@ -32,7 +32,7 @@ async function qaScreenshot(page: Page, name: string, area: ScreenshotArea = { k
   await page.waitForTimeout(600);
   // Expo's fast-refresh indicator sits over the footer's Hosts icon.
   await page.addStyleTag({ content: ".__expo_fast_refresh { display: none !important; }" });
-  const file = path.join(directory, `phase4-${name}.png`);
+  const file = path.join(directory, `${name}.png`);
   if (area.kind === "element") {
     await area.locator.screenshot({ path: file });
     return;
@@ -66,6 +66,16 @@ test.describe("Usage item", () => {
       await expect(usageItem(page)).toBeVisible({ timeout: 30_000 });
       await expectPinnedUsage(page, ["31%", "7%"]);
       await qaScreenshot(page, "desktop-footer-defaults", { kind: "footer" });
+      await openSidebarNavSettings(page);
+      await qaScreenshot(page, "desktop-settings-sidebar-footer");
+      await page.setViewportSize(COMPACT);
+      await qaScreenshot(page, "compact-settings-sidebar-footer");
+      await gotoAppShell(page);
+      await openCompactSidebar(page);
+      await expectPinnedUsage(page, ["31%", "7%"]);
+      await qaScreenshot(page, "compact-footer-defaults");
+      await page.setViewportSize(WIDE);
+      await gotoAppShell(page);
       await usageItem(page).click();
       await expectOnUsageScreen(page);
     });
@@ -95,7 +105,8 @@ test.describe("Usage item", () => {
 
     await test.step("remaining flips the Usage item and the Usage screen", async () => {
       await showUsageAs(page, "remaining");
-      await expectPinnedUsage(page, ["69% left", "88% left"]);
+      await expectPinnedUsage(page, ["69%", "88%"]);
+      await expect(usageItem(page)).toHaveAccessibleName(/Claude .*69% left, Codex .*88% left/);
       await expect(
         screen.getByTestId("usage-report-claude:default").getByText("69% left"),
       ).toBeVisible();
@@ -117,7 +128,7 @@ test.describe("Usage item", () => {
       await leaveUsageScreen(page);
       await openCompactSidebar(page);
       await expect(usageItem(page)).toBeInViewport();
-      await expectPinnedUsage(page, ["69% left", "88% left"]);
+      await expectPinnedUsage(page, ["69%", "88%"]);
       await qaScreenshot(page, "compact-footer");
       await usageItem(page).click();
       const sheet = usageSheet(page);
@@ -150,7 +161,7 @@ test.describe("Usage item", () => {
 
     await test.step("a reload keeps the pins and the toggle", async () => {
       await page.reload();
-      await expectPinnedUsage(page, ["69% left", "88% left"]);
+      await expectPinnedUsage(page, ["69%", "88%"]);
       await expect(
         page.locator('[data-testid="usage-display-remaining"]:visible').first(),
       ).toHaveAttribute("aria-selected", "true");
@@ -170,10 +181,10 @@ test.describe("Usage item", () => {
     await test.step("unpinning both brings back default windows, and that survives a reload", async () => {
       await togglePin(screen, "Claude", "Session");
       await togglePin(screen, "Codex", "Weekly");
-      await expectPinnedUsage(page, ["69% left", "93% left"]);
+      await expectPinnedUsage(page, ["69%", "93%"]);
       await page.reload();
       await expect(screen.getByText("88% left")).toBeVisible({ timeout: 10_000 });
-      await expectPinnedUsage(page, ["69% left", "93% left"]);
+      await expectPinnedUsage(page, ["69%", "93%"]);
       await gotoAppShell(page);
       await usageItem(page).click();
       await expectOnUsageScreen(page);
