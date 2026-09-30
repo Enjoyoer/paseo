@@ -1,22 +1,30 @@
 import type { Page } from "@playwright/test";
 import type { UsageReportEntry } from "@getpaseo/protocol/messages";
-import { daemonWsRoutePattern } from "./daemon-port";
+import { daemonWsRoutePattern, wsRoutePatternForPort } from "./daemon-port";
+
+export interface UsageListRequest {
+  forceRefresh: boolean;
+  reportIds?: string[];
+}
 
 export interface UsageReportsFixture {
-  listRequests(): Array<{ forceRefresh: boolean; reportIds?: string[] }>;
+  listRequests(): UsageListRequest[];
   waitForListRequests(count: number): Promise<void>;
 }
 
 interface UsageReportsFixtureOptions {
   /**
    * Successive `usage.list_reports` responses; the last one repeats. `{ error }` fails that
-   * request; a function builds the response when the request arrives (e.g. a fresh `fetchedAt`).
+   * request; a function builds the response from the request when it arrives (e.g. a fresh
+   * `fetchedAt`, or a different answer to a forced refresh).
    */
-  lists?: Array<UsageListResponse | (() => UsageListResponse)>;
+  lists?: Array<UsageListResponse | ((request: UsageListRequest) => UsageListResponse)>;
   /** False simulates a host with no usage reporting capability. */
   usageSupported?: boolean;
   /** Released hosts expose provider.usage.list with no source icons. */
   providerUsageListOnly?: boolean;
+  /** The host daemon's port; defaults to the E2E daemon. */
+  port?: number;
 }
 
 type UsageListResponse = UsageReportEntry[] | { error: string };
@@ -103,7 +111,7 @@ export async function installUsageReportsFixture(
   page: Page,
   options: UsageReportsFixtureOptions,
 ): Promise<UsageReportsFixture> {
-  const listRequests: Array<{ forceRefresh: boolean; reportIds?: string[] }> = [];
+  const listRequests: UsageListRequest[] = [];
   const listCounter = createCounter();
   const usageSupported = options.usageSupported ?? true;
   const providerUsageListOnly = options.providerUsageListOnly ?? false;
@@ -111,19 +119,22 @@ export async function installUsageReportsFixture(
     ? "provider.usage.list.request"
     : "usage.list_reports.request";
 
-  await page.routeWebSocket(daemonWsRoutePattern(), (ws) => {
+  const route =
+    options.port === undefined ? daemonWsRoutePattern() : wsRoutePatternForPort(`${options.port}`);
+  await page.routeWebSocket(route, (ws) => {
     const server = ws.connectToServer();
 
     ws.onMessage((message) => {
       const request = getSessionMessage(message);
       const requestId = request?.requestId;
       if (request?.type === requestType && typeof requestId === "string") {
-        listRequests.push({
+        const listRequest: UsageListRequest = {
           forceRefresh: request.forceRefresh === true,
           reportIds: Array.isArray(request.reportIds) ? (request.reportIds as string[]) : undefined,
-        });
+        };
+        listRequests.push(listRequest);
         const scripted = pick(options.lists ?? [[]], listRequests.length - 1);
-        const response = typeof scripted === "function" ? scripted() : scripted;
+        const response = typeof scripted === "function" ? scripted(listRequest) : scripted;
         if ("error" in response) {
           ws.send(
             JSON.stringify({

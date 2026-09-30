@@ -40,7 +40,7 @@ function preferences(
   pinned: UsagePreferences["pinned"],
   displayAs: UsagePreferences["displayAs"] = "used",
 ): UsagePreferences {
-  return { displayAs, pinned };
+  return { displayAs, pinned, serverId: null };
 }
 
 describe("resolvePinnedUsage", () => {
