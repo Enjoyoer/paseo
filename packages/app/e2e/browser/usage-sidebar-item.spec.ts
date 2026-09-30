@@ -77,10 +77,10 @@ test.describe("Usage item", () => {
 
     await test.step("pinning Claude 5-hour and Codex weekly shows both in the Usage item", async () => {
       await expect(screen.getByText("Claude", { exact: true })).toBeVisible({ timeout: 10_000 });
-      // One host: the selector still names it.
-      await expect(
-        page.locator('[data-testid="usage-host-switcher"]:visible'),
-      ).toHaveAccessibleName(/^Usage host: .+/);
+      // One host: no host filter, as on History.
+      await expect(page.locator('[data-testid="usage-host-filter-trigger"]:visible')).toHaveCount(
+        0,
+      );
       await togglePin(screen, "Claude", "Session");
       await expectPinnedUsage(page, ["31%"]);
       await togglePin(screen, "Codex", "Weekly");
@@ -135,10 +135,7 @@ test.describe("Usage item", () => {
       await expect(pinRow(sheet, "Claude", "Session")).toHaveAccessibleName(
         /^Pin Claude Session, \d+% left( · .+)?$/,
       );
-      // The sheet carries the Usage screen's controls, host selector included.
-      await expect(
-        page.locator('[data-testid="usage-host-switcher"]:visible'),
-      ).toHaveAccessibleName(/^Usage host: .+/);
+      // The sheet carries the Usage screen's controls.
       await expect(page.locator('[data-testid="usage-refresh-all"]:visible')).toBeVisible();
       await expect(page).not.toHaveURL(/\/usage$/);
       const sheetBox = (await sheet.boundingBox())!;

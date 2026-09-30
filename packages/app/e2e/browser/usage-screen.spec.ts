@@ -20,15 +20,14 @@ async function qaScreenshot(page: Page, name: string) {
   await page.screenshot({ path: path.join(directory, `${name}.png`) });
 }
 
-/** The host selector names the host shown, even when it is the only one. */
-async function shownHostLabel(page: Page): Promise<string> {
-  const selector = page.locator('[data-testid="usage-host-switcher"]:visible');
-  await expect(selector).toHaveAccessibleName(/^Usage host: .+/, { timeout: 10_000 });
-  return (await selector.innerText()).trim();
+function hostFilter(page: Page) {
+  return page.locator('[data-testid="usage-host-filter-trigger"]:visible');
 }
 
 test.describe("usage screen", () => {
-  test("opens from the sidebar on the host's reports, naming the one host", async ({ page }) => {
+  test("opens from the sidebar on the host's reports, with no host filter for one host", async ({
+    page,
+  }) => {
     test.setTimeout(120_000);
     const serverId = getServerId();
     const usage = await installUsageReportsFixture(page, {
@@ -64,10 +63,7 @@ test.describe("usage screen", () => {
 
     const group = page.getByTestId(`usage-host-${serverId}`);
     await expect(group.getByText("Alpha plan", { exact: true })).toBeVisible({ timeout: 10_000 });
-    const hostLabel = await shownHostLabel(page);
-    await expect(page.locator('[data-testid="usage-host-switcher"]:visible')).toHaveAccessibleName(
-      `Usage host: ${hostLabel}`,
-    );
+    await expect(hostFilter(page)).toHaveCount(0);
     await qaScreenshot(page, "phase7-usage-screen-one-host");
     await expect(group.getByText("31%")).toBeVisible();
     await expect(group.getByText("Beta plan", { exact: true })).toBeVisible();
@@ -169,11 +165,8 @@ test.describe("usage screen", () => {
     await gotoAppShell(page);
     await page.locator('[data-testid="sidebar-usage"]:visible').first().click();
 
-    const hostLabel = await shownHostLabel(page);
     await expect(
-      page.getByTestId(`usage-host-${serverId}`).getByText(`Update ${hostLabel} to see usage`, {
-        exact: true,
-      }),
+      page.getByTestId(`usage-host-${serverId}`).getByText(/^Update .+ to see usage$/),
     ).toBeVisible({ timeout: 10_000 });
     await qaScreenshot(page, "phase7-usage-update-host");
     expect(usage.listRequests()).toHaveLength(0);
