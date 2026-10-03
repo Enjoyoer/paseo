@@ -11,7 +11,7 @@ import pino from "pino";
 import { withTimeout } from "../../utils/promise-timeout.js";
 import { hashDaemonPassword } from "../auth.js";
 import { createPaseoDaemon, type PaseoDaemonConfig } from "../bootstrap.js";
-import { createTestAgentClients } from "../test-utils/fake-agent-client.js";
+import { FakeAgentClient, createTestAgentClients } from "../test-utils/fake-agent-client.js";
 import type {
   AgentClient,
   AgentPersistenceHandle,
@@ -234,6 +234,82 @@ async function assertAgentNotRunning(options: {
 }
 
 describe("agent MCP end-to-end (offline)", () => {
+  test("omitted provider creates Pi through top-level MCP and preserves explicit native routes", async () => {
+    const paseoHome = await mkdtemp(path.join(os.tmpdir(), "paseo-pi-default-"));
+    const staticDir = await mkdtemp(path.join(os.tmpdir(), "paseo-pi-static-"));
+    const agentCwd = await mkdtemp(path.join(os.tmpdir(), "paseo-pi-cwd-"));
+    const port = await getAvailablePort();
+    const recorder: LaunchRecorder = { recordedLaunches: [] };
+    const pi = new FakeAgentClient("pi", {});
+    pi.fetchCatalog = async () => ({
+      models: [
+        {
+          provider: "pi",
+          id: "route/catalog-default",
+          label: "Luna",
+          isDefault: true,
+          defaultThinkingOptionId: "high",
+          thinkingOptions: [{ id: "high", label: "High" }],
+        },
+      ],
+      modes: [],
+    });
+    const daemon = await createPaseoDaemon(
+      {
+        listen: `127.0.0.1:${port}`,
+        paseoHome,
+        corsAllowedOrigins: [],
+        hostnames: true,
+        mcpEnabled: true,
+        staticDir,
+        mcpDebug: false,
+        agentClients: { ...createTestAgentClients(), pi: new RecordingAgentClient(pi, recorder) },
+        agentStoragePath: path.join(paseoHome, "agents"),
+      },
+      pino({ level: "silent" }),
+    );
+    await daemon.start();
+    const client = await createMcpClient(`http://127.0.0.1:${port}/mcp/agents`);
+    try {
+      const workspace = await createLocalWorkspace(client, agentCwd);
+      expect("workspaceId" in workspace).toBe(true);
+      const result = await client.callTool({
+        name: "create_agent",
+        args: {
+          title: "Pi default proof",
+          workspaceId: "workspaceId" in workspace ? workspace.workspaceId : undefined,
+          initialPrompt: "Reply done",
+          background: false,
+        },
+      });
+      expect(result.isError).not.toBe(true);
+      expect(getStructuredContent(result)?.agentId).toBeTruthy();
+      expect(recorder.recordedLaunches[0]).toMatchObject({
+        provider: "pi",
+        model: "route/catalog-default",
+        thinkingOptionId: "high",
+      });
+      const native = await client.callTool({
+        name: "create_agent",
+        args: {
+          title: "Native fallback proof",
+          cwd: agentCwd,
+          provider: "codex/gpt-5.4-mini",
+          initialPrompt: "Reply done",
+          background: false,
+        },
+      });
+      expect(native.isError).not.toBe(true);
+      expect(getStructuredContent(native)?.agentId).toBeTruthy();
+    } finally {
+      await client.close();
+      await daemon.stop();
+      await Promise.all(
+        [paseoHome, staticDir, agentCwd].map((p) => rm(p, { recursive: true, force: true })),
+      );
+    }
+  }, 30_000);
+
   test("create_agent runs initial prompt and affects filesystem", async () => {
     const paseoHome = await mkdtemp(path.join(os.tmpdir(), "paseo-home-"));
     const staticDir = await mkdtemp(path.join(os.tmpdir(), "paseo-static-"));

@@ -1589,7 +1589,7 @@ export function createPaseoToolCatalog(options: PaseoToolHostDependencies): Pase
         args as Record<string, unknown>,
         await providerSnapshotManager.listModels({
           provider: "pi",
-          cwd: resolveScopedCwd(undefined, { required: true }),
+          cwd: resolveCallerAgent()?.cwd,
           wait: true,
         }),
       );

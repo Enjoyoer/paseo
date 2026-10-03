@@ -1197,7 +1197,7 @@ class FakeAgentSession implements AgentSession {
   }
 }
 
-class FakeAgentClient implements AgentClient {
+export class FakeAgentClient implements AgentClient {
   readonly capabilities: AgentCapabilityFlags;
   constructor(
     public readonly provider: string,
