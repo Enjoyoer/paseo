@@ -586,7 +586,7 @@ export async function runRunCommand(
   validateRunOptions(prompt, options, outputSchema);
   const waitTimeoutMs = parseWaitTimeoutOption(options.waitTimeout);
 
-  const resolvedProviderModel = resolveProviderAndModel(options);
+  const resolvedProviderModel = resolveProviderAndModel({ ...options, defaultProvider: "pi" });
   const resolvedTitle = options.title ?? options.name;
 
   const client = await connectToDaemon({ target: options.daemonTarget });

@@ -1,3 +1,4 @@
+import { withPiCreateDefault } from "./pi-create-default.js";
 import { stat } from "node:fs/promises";
 import { z } from "zod";
 import { ensureValidJson } from "../../json-utils.js";
@@ -1005,7 +1006,7 @@ export function createPaseoToolCatalog(options: PaseoToolHostDependencies): Pase
       .max(60, "Title must be 60 characters or fewer")
       .describe("Short descriptive title (<= 60 chars) summarizing the agent's focus."),
     provider: ProviderModelInputSchema.describe(
-      "Required provider/model pair, for example codex/gpt-5.4.",
+      "Optional provider/model pair. Omit for Pi catalog defaults; explicit routes are preserved.",
     ),
     labels: z.record(z.string(), z.string()).optional().describe("Labels to set on the agent"),
     settings: CreateAgentSettingsInputSchema.optional().describe(
@@ -1114,7 +1115,10 @@ export function createPaseoToolCatalog(options: PaseoToolHostDependencies): Pase
       .describe("Legacy GitHub PR number. Prefer workspace.source.target.githubPrNumber."),
   };
   const createAgentInputSchema = z
-    .object(callerAgentId ? agentToAgentInputSchema : canonicalTopLevelInputSchema)
+    .object({
+      ...(callerAgentId ? agentToAgentInputSchema : canonicalTopLevelInputSchema),
+      provider: ProviderModelInputSchema.optional(),
+    })
     .passthrough();
   const agentToAgentCreateAgentArgsSchema = z.object(agentToAgentInputSchema).strict();
   const legacyAgentToAgentCreateAgentArgsSchema = z.object(legacyAgentToAgentInputSchema).strict();
@@ -1432,7 +1436,7 @@ export function createPaseoToolCatalog(options: PaseoToolHostDependencies): Pase
     {
       title: "Create agent",
       description:
-        "Create an agent. Agent-scoped creation defaults to your workspace and creates your subagent. Top-level creation without workspaceId creates a new local workspace. Requires provider/model (for example codex/gpt-5.4) and an initial prompt. Do not guess; call list_providers and list_models first if uncertain.",
+        "Create an agent. Agent-scoped creation defaults to your workspace and creates your subagent. Top-level creation without workspaceId creates a new local workspace. Omitted provider uses Pi catalog defaults. Explicit provider/model and settings are preserved. Requires an initial prompt. Do not guess; call list_providers and list_models first if uncertain.",
       inputSchema: createAgentInputSchema,
       outputSchema: {
         agentId: z.string(),
@@ -1575,6 +1579,21 @@ export function createPaseoToolCatalog(options: PaseoToolHostDependencies): Pase
       };
 
   async function resolveCreateAgentToolArgs(args: unknown): Promise<ResolvedCreateAgentToolArgs> {
+    if (
+      args &&
+      typeof args === "object" &&
+      !Array.isArray(args) &&
+      (args as Record<string, unknown>).provider === undefined
+    ) {
+      args = withPiCreateDefault(
+        args as Record<string, unknown>,
+        await providerSnapshotManager.listModels({
+          provider: "pi",
+          cwd: resolveCallerAgent()?.cwd,
+          wait: true,
+        }),
+      );
+    }
     if (callerAgentId) {
       if (hasLegacyCreateAgentPlacement(args)) {
         // COMPAT(nestedCreateAgentPlacement): accept the old relationship/workspace shape without

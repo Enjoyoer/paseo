@@ -596,3 +596,12 @@ Tests use `isProviderAvailable(provider)` to skip when the binary or credentials
 - Gate the operations **the daemon issues** (prompt, slash command, summarize) on both the terminal and cancel settlement. Permission and question responses are not runner operations and must stay outside the gate, or an auto-approve deadlocks the stop. Runs the _provider_ starts on its own — plugin or autonomous wakes — are observed, not gated: the daemon does not choose when they begin, and holding their events back does not protect them from a cancel already in flight, it only hides a run that may already be dead.
 - Fail closed: if the cancel never succeeded you never proved the run stopped, so refuse new runs until the next Stop issues a fresh cancel. `AgentManager` already turns a rejected `interrupt()` into a refused cancel.
 - Suppress the canceled run's residue only until its authoritative terminal. Anything the provider publishes after that terminal is a new run by construction and must take the normal live path — buffering it and replaying it later is how autonomous/plugin wakes get lost.
+
+### Proposed default surface
+
+Omitting `--provider` on `paseo run` chooses Pi. Omitting `provider` on the MCP
+`create_agent` tool also chooses Pi's configured catalog default model and
+thinking, while explicit provider/model and thinking values are preserved.
+This does not migrate saved app picker preferences or change existing agents,
+schedules, or the Codex provider. Pi must be available; failures do not substitute
+a provider. The app still uses its own saved create-agent preferences.
